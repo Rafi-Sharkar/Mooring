@@ -1,0 +1,69 @@
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+model Agent {
+  id         String      @id @default(uuid())
+  name       String
+  tokenHash  String      @unique
+  status     AgentStatus @default(OFFLINE)
+  lastSeenAt DateTime?
+  ipAddress  String?
+  osInfo     Json?
+  containers Container[]
+  auditLogs  AuditLog[]
+  createdAt  DateTime    @default(now())
+  updatedAt  DateTime    @updatedAt
+}
+
+model Container {
+  id          String   @id @default(uuid())
+  agentId     String
+  agent       Agent    @relation(fields: [agentId], references: [id], onDelete: Cascade)
+  containerId String
+  name        String
+  image       String
+  status      String
+  state       String
+  cpuPercent  Float?
+  memUsage    Float?
+  memLimit    Float?
+  netRx       Float?
+  netTx       Float?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@unique([agentId, containerId])
+  @@index([agentId])
+}
+
+model AuditLog {
+  id        String   @id @default(uuid())
+  agentId   String?
+  agent     Agent?   @relation(fields: [agentId], references: [id], onDelete: SetNull)
+  action    String
+  details   Json?
+  createdAt DateTime @default(now())
+
+  @@index([agentId])
+  @@index([createdAt])
+}
+
+enum AgentStatus {
+  ONLINE
+  OFFLINE
+  STALE
+}
+
+model SuperAdmin {
+  id           String   @id @default(uuid())
+  username     String   @unique
+  passwordHash String
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+}

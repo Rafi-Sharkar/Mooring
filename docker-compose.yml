@@ -1,0 +1,52 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-dockhand}
+      POSTGRES_USER: ${POSTGRES_USER:-dockhand}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-dockhand_dev}
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-dockhand}"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  api:
+    build:
+      context: .
+      dockerfile: apps/api/Dockerfile
+    restart: unless-stopped
+    ports:
+      - "3001:3001"
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER:-dockhand}:${POSTGRES_PASSWORD:-dockhand_dev}@postgres:5432/${POSTGRES_DB:-dockhand}
+      PORT: "3001"
+      CORS_ORIGIN: ${CORS_ORIGIN:-http://localhost:3000}
+      DOCKHAND_PUBLIC_URL: ${DOCKHAND_PUBLIC_URL:-ws://localhost:3001/api/hawser/connect}
+      NODE_ENV: production
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  web:
+    build:
+      context: .
+      dockerfile: apps/web/Dockerfile
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      INTERNAL_API_URL: http://api:3001
+      PORT: "3000"
+      NODE_ENV: production
+    depends_on:
+      - api
+
+volumes:
+  pgdata:
+
