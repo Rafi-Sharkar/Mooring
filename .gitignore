@@ -27,3 +27,7 @@ Thumbs.db
 *.log
 npm-debug.log*
 pnpm-debug.log*
+
+# Runtime data (bind mounts — never commit)
+data/
+backups/
