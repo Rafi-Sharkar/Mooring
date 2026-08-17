@@ -114,3 +114,23 @@ server-monitor-agent/
 ## License
 
 MIT
+
+---
+
+## Data Persistence & Backups
+
+Dockhand persists Postgres data via a host bind mount at `./data/postgres` and runs automated daily `pg_dump` backups to `./backups/postgres` (30-day rotation). See **[DATA.md](./DATA.md)** for full details on:
+
+- Where data lives and what's backed up
+- How to restore (latest dump, specific dump, total loss)
+- Off-host backup recommendations (rsync/rclone/borg)
+- Security notes for backup files
+
+Quick reference:
+
+```bash
+docker compose up -d                                  # start the stack
+docker compose --profile backup up -d                # also start the backup scheduler
+docker compose --profile backup run --rm backup once # force a backup right now
+docker compose --profile restore run --rm restore    # restore from the latest dump
+```
