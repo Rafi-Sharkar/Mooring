@@ -2,7 +2,7 @@ import { Injectable, NotFoundException, Logger } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { AuthService } from '../auth/auth.service';
 import { CreateAgentDto } from './dto/create-agent.dto';
-import { AgentStatus } from '@prisma/client';
+import { AgentStatus } from '@dockhand/database';
 
 @Injectable()
 export class AgentsService {

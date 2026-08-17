@@ -1,7 +1,6 @@
-import { PrismaClient } from '@prisma/client';
+import process from 'node:process';
 import * as argon2 from 'argon2';
-
-const prisma = new PrismaClient();
+import { prisma } from '../src';
 
 async function main() {
   const username = process.env.SUPER_ADMIN_USERNAME || 'rafi_sharkar';

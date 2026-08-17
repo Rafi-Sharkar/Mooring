@@ -5,12 +5,22 @@ const API_BASE =
 
 async function fetchApi(path: string, options?: RequestInit) {
   const res = await fetch(`${API_BASE}${path}`, {
+    credentials: 'include',
     headers: {
       'Content-Type': 'application/json',
       ...options?.headers,
     },
     ...options,
   });
+
+  if (res.status === 401) {
+    // Session expired or invalid — kick back to login.
+    if (typeof window !== 'undefined' && !window.location.pathname.startsWith('/login')) {
+      const here = window.location.pathname + window.location.search;
+      window.location.href = `/login?next=${encodeURIComponent(here)}`;
+    }
+    throw new Error('Not authenticated');
+  }
 
   if (!res.ok) {
     const error = await res.json().catch(() => ({ message: res.statusText }));

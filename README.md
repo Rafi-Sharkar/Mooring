@@ -59,8 +59,10 @@ docker compose up postgres -d
 
 ```bash
 cp apps/api/.env.example apps/api/.env
+cp packages/database/.env.example packages/database/.env
 pnpm db:generate
 pnpm db:push
+pnpm db:seed
 ```
 
 ### 4. Start development servers

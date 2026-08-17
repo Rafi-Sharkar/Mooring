@@ -10,9 +10,11 @@
     "db:generate": "pnpm --filter @dockhand/database db:generate",
     "db:push": "pnpm --filter @dockhand/database db:push",
     "db:migrate": "pnpm --filter @dockhand/database db:migrate",
-    "db:studio": "pnpm --filter @dockhand/database db:studio"
+    "db:studio": "pnpm --filter @dockhand/database db:studio",
+    "db:seed": "pnpm --filter @dockhand/database db:seed"
   },
   "devDependencies": {
+    "@types/node": "^22.0.0",
     "turbo": "^2.5.0",
     "typescript": "^5.7.0"
   },

@@ -1,7 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { AgentsService } from '../agents/agents.service';
-import { AgentStatus } from '@prisma/client';
+import { AgentStatus } from '@dockhand/database';
 import {
   AgentMessage,
   AuthResponseMessage,

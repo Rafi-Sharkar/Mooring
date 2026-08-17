@@ -1,12 +1,27 @@
+import 'dotenv/config';
+import * as path from 'node:path';
+import * as fs from 'node:fs';
+
+// Load env from apps/api/.env if present (overrides nothing — only sets missing vars)
+const envPath = path.resolve(__dirname, '..', '.env');
+if (fs.existsSync(envPath)) {
+  // eslint-disable-next-line @typescript-eslint/no-var-requires
+  require('dotenv').config({ path: envPath });
+}
+
 import { NestFactory } from '@nestjs/core';
 import { ValidationPipe } from '@nestjs/common';
 import { WsAdapter } from '@nestjs/platform-ws';
+import cookieParser from 'cookie-parser';
 import { AppModule } from './app.module';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
 
-  // Enable CORS for dashboard
+  // Parse cookies (needed for HttpOnly JWT session cookie)
+  app.use(cookieParser());
+
+  // Enable CORS for dashboard — credentials required for cookie auth
   app.enableCors({
     origin: process.env.CORS_ORIGIN || 'http://localhost:3000',
     credentials: true,

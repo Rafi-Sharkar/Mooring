@@ -12,17 +12,25 @@ const CONTAINER_SYNC_INTERVAL = 10_000; // 10 seconds
 const STATS_INTERVAL = 30_000; // 30 seconds
 const HEARTBEAT_INTERVAL = 30_000; // 30 seconds
 
-if (!DOCKHAND_SERVER_URL) {
-  console.error('❌ DOCKHAND_SERVER_URL environment variable is required');
-  process.exit(1);
-}
-
-if (!TOKEN) {
-  console.error('❌ TOKEN environment variable is required');
-  process.exit(1);
-}
-
-console.log(`
+if (!DOCKHAND_SERVER_URL || !TOKEN) {
+  if (process.env.NODE_ENV === 'production') {
+    if (!DOCKHAND_SERVER_URL) console.error('❌ DOCKHAND_SERVER_URL environment variable is required');
+    if (!TOKEN) console.error('❌ TOKEN environment variable is required');
+    process.exit(1);
+  } else {
+    console.warn(`
+╔══════════════════════════════════════════════════════════════╗
+║  ⚠️  Hawser Agent (Development Mode - Idle)                  ║
+║  DOCKHAND_SERVER_URL or TOKEN is not configured.             ║
+║  Create an agent token in the Web Dashboard (Settings)       ║
+║  and provide it via environment variables when needed.       ║
+╚══════════════════════════════════════════════════════════════╝
+`);
+    // Keep dev process alive without crashing Turborepo
+    setInterval(() => {}, 1 << 30);
+  }
+} else {
+  console.log(`
 ╔══════════════════════════════════════════╗
 ║         🔱 Hawser Agent v1.0.0          ║
 ╠══════════════════════════════════════════╣
@@ -31,19 +39,19 @@ console.log(`
 ╚══════════════════════════════════════════╝
 `);
 
-let syncInterval: NodeJS.Timeout | null = null;
-let statsInterval: NodeJS.Timeout | null = null;
-let heartbeatInterval: NodeJS.Timeout | null = null;
-let isAuthenticated = false;
+  let syncInterval: NodeJS.Timeout | null = null;
+  let statsInterval: NodeJS.Timeout | null = null;
+  let heartbeatInterval: NodeJS.Timeout | null = null;
+  let isAuthenticated = false;
 
-const client = new WsClient({
-  url: DOCKHAND_SERVER_URL,
-  token: TOKEN,
-  agentName: AGENT_NAME,
+  const client = new WsClient({
+    url: DOCKHAND_SERVER_URL,
+    token: TOKEN,
+    agentName: AGENT_NAME,
 
-  onOpen: () => {
-    console.log('[Agent] Connected to Dockhand server, authenticating...');
-  },
+    onOpen: () => {
+      console.log('[Agent] Connected to Dockhand server, authenticating...');
+    },
 
   onMessage: async (message: any) => {
     switch (message.type) {
@@ -170,3 +178,5 @@ process.on('SIGINT', () => {
   client.close();
   process.exit(0);
 });
+}
+
