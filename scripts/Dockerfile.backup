@@ -1,0 +1,23 @@
+# Lightweight image that runs pg_dump on a fixed interval (default 24h).
+# Designed to run as a sidecar next to the postgres service.
+FROM postgres:16-alpine
+
+# The base image already has pg_dump, psql, and busybox utilities.
+COPY backup-postgres.sh /usr/local/bin/backup-postgres.sh
+COPY docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
+
+ENV BACKUP_DIR=/backups \
+    BACKUP_INTERVAL_SECONDS=86400 \
+    BACKUP_RUN_ON_START=true \
+    POSTGRES_HOST=postgres \
+    POSTGRES_PORT=5432 \
+    POSTGRES_USER=dockhand \
+    POSTGRES_PASSWORD=dockhand_dev \
+    POSTGRES_DB=dockhand
+
+# Run as the postgres user (matches base image) so we can connect to the
+# postgres service via the internal docker network.
+USER postgres
+
+ENTRYPOINT ["/usr/local/bin/docker-entrypoint.sh"]
+CMD ["loop"]

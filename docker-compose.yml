@@ -1,3 +1,18 @@
+# Dockhand — full stack
+#
+# Data persistence:
+#   • Postgres data   → bind mount ./data/postgres   (predictable host path, easy backups)
+#   • Postgres dumps  → bind mount ./backups/postgres (daily pg_dump, 30-day rotation)
+#   • API .env        → bind mount ./apps/api/.env   (changes don't require rebuild)
+#   • DB package .env → bind mount ./packages/database/.env (seeds the superadmin)
+#
+# Recovery:
+#   • Restore latest dump:    docker compose run --rm restore
+#   • Restore specific file:  docker compose run --rm restore -- /backups/postgres/dockhand-YYYYMMDD.dump
+#
+# Backups run every 24h inside the `backup` container. To force an immediate
+# backup:  docker compose run --rm backup once
+
 services:
   postgres:
     image: postgres:16-alpine
@@ -9,12 +24,71 @@ services:
     ports:
       - "5438:5432"
     volumes:
-      - pgdata:/var/lib/postgresql/data
+      # Bind-mount to a known host path. Falls back to a named volume
+      # `./data/postgres` directory if the host path is missing.
+      - ./data/postgres:/var/lib/postgresql/data
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-dockhand}"]
       interval: 5s
       timeout: 3s
       retries: 5
+
+  backup:
+    build:
+      context: ./scripts
+      dockerfile: Dockerfile.backup
+    restart: unless-stopped
+    environment:
+      POSTGRES_HOST: postgres
+      POSTGRES_PORT: "5432"
+      POSTGRES_USER: ${POSTGRES_USER:-dockhand}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-dockhand_dev}
+      POSTGRES_DB: ${POSTGRES_DB:-dockhand}
+      BACKUP_DIR: /backups
+      BACKUP_INTERVAL_SECONDS: ${BACKUP_INTERVAL_SECONDS:-86400}
+      BACKUP_KEEP: ${BACKUP_KEEP:-30}
+      BACKUP_RUN_ON_START: "true"
+    volumes:
+      - ./backups/postgres:/backups
+    depends_on:
+      postgres:
+        condition: service_healthy
+    profiles: ["backup"]
+
+  restore:
+    build:
+      context: ./scripts
+      dockerfile: Dockerfile.backup
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        set -eu
+        DUMP="$${1:-/backups/latest.dump}"
+        if [ ! -f "$$DUMP" ]; then
+          echo "ERROR: dump not found: $$DUMP" >&2
+          ls -lh /backups/ >&2 || true
+          exit 1
+        fi
+        echo "Restoring $$DUMP into ${POSTGRES_DB:-dockhand} on postgres:5432..."
+        export PGPASSWORD="${POSTGRES_PASSWORD:-dockhand_dev}"
+        # Drop and recreate the public schema, then load.
+        psql -h postgres -U "${POSTGRES_USER:-dockhand}" -d "${POSTGRES_DB:-dockhand}" \
+             -c "DROP SCHEMA IF EXISTS public CASCADE; CREATE SCHEMA public;" \
+             -c "GRANT ALL ON SCHEMA public TO ${POSTGRES_USER:-dockhand};" \
+             -c "GRANT ALL ON SCHEMA public TO public;"
+        pg_restore -h postgres -U "${POSTGRES_USER:-dockhand}" -d "${POSTGRES_DB:-dockhand}" \
+                   --no-owner --no-privileges --clean --if-exists "$$DUMP"
+        echo "Restore complete."
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-dockhand}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-dockhand_dev}
+      POSTGRES_DB: ${POSTGRES_DB:-dockhand}
+    volumes:
+      - ./backups/postgres:/backups
+    depends_on:
+      postgres:
+        condition: service_healthy
+    profiles: ["restore"]
 
   api:
     build:
@@ -29,9 +103,19 @@ services:
       CORS_ORIGIN: ${CORS_ORIGIN:-http://localhost:3000}
       DOCKHAND_PUBLIC_URL: ${DOCKHAND_PUBLIC_URL:-ws://localhost:3001/api/hawser/connect}
       NODE_ENV: production
+    volumes:
+      # Bind-mount .env so changes apply without rebuilding the image.
+      - ./apps/api/.env:/app/apps/api/.env:ro
     depends_on:
       postgres:
         condition: service_healthy
+    healthcheck:
+      # node is present in the image; use it to hit the health endpoint.
+      test: ["CMD-SHELL", "node -e \"require('http').get('http://localhost:3001/api/health', r => process.exit(r.statusCode === 200 ? 0 : 1)).on('error', () => process.exit(1))\""]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
 
   web:
     build:
@@ -44,9 +128,15 @@ services:
       INTERNAL_API_URL: http://api:3001
       PORT: "3000"
       NODE_ENV: production
+    volumes:
+      # Allow .env overrides at runtime without rebuilding.
+      - ./apps/web/.env:/app/apps/web/.env:ro
     depends_on:
-      - api
-
-volumes:
-  pgdata:
-
+      api:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "node -e \"require('http').get('http://localhost:3000/', r => process.exit(r.statusCode === 200 || r.statusCode === 307 ? 0 : 1)).on('error', () => process.exit(1))\""]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
